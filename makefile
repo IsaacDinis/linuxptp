@@ -18,7 +18,6 @@
 KBUILD_OUTPUT =
 
 DEBUG	=
-CC	= $(CROSS_COMPILE)gcc
 VER     = -DVER=$(version)
 CFLAGS	= -Wall $(VER) $(incdefs) $(DEBUG) $(EXTRA_CFLAGS)
 LDLIBS	= -lm -lrt -pthread $(EXTRA_LDFLAGS)
@@ -43,7 +42,7 @@ incdefs := $(shell $(srcdir)/incdefs.sh)
 version := $(shell $(srcdir)/version.sh $(srcdir))
 VPATH	= $(srcdir)
 
-prefix	= /usr/local
+prefix	= 
 sbindir	= $(prefix)/sbin
 mandir	= $(prefix)/man
 man8dir	= $(mandir)/man8
