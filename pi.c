@@ -35,6 +35,7 @@
 
 #define FREQ_EST_MARGIN 0.001
 
+
 double clamp(double x, double upper, double lower);
 
 typedef enum{
@@ -76,14 +77,13 @@ static double pi_sample(struct servo *servo,
     enum servo_state *state)
 {
     static servo_stability servo_state = SERVO_UNSTABLE;
-    static bool is_init = 0;
     static uint32_t stable_count = 100;
     struct pi_servo *s = container_of(servo, struct pi_servo, servo);
     double ki_term, ppb = s->last_freq;
     double freq_est_interval, localdiff;
 
     if(*state == SERVO_LOCKED){// why never true ?
-        pr_info("offset = %lld, state = %d \n", offset, *state);
+        pr_info("plop");
     }
     switch (s->count) {
     case 0:
@@ -146,12 +146,16 @@ static double pi_sample(struct servo *servo,
          * clock startup.
          */
         
-        if (servo->step_threshold &&
-            servo->step_threshold < llabs(offset)) {
-            *state = SERVO_UNLOCKED;
+        if (llabs(offset) > (int64_t) 1E6){ // offset is bigger than 10 frames
+            *state = SERVO_JUMP;
+            pr_info("PTP jumping");
+            servo_state = SERVO_UNSTABLE;
+            s->drift = 0;
+            stable_count = 100;
             s->count = 0;
             break;
         }
+
 
         if((servo_state == SERVO_UNSTABLE || servo_state == SERVO_METASTABLE) && labs(offset) < (int64_t) 100){     
             if(stable_count > 0){
@@ -159,38 +163,31 @@ static double pi_sample(struct servo *servo,
             }
             if (stable_count == 0){
                 pr_info("servo stable !");
-                s->kp = 1.3;
-                s->ki = 0.13;
+                s->kp = 0.2;
+                s->ki = 0.02;
                 servo_state = SERVO_STABLE;
-                is_init = 1;
             }
         }
         
         if((servo_state == SERVO_STABLE || servo_state == SERVO_METASTABLE)  && labs(offset) > (int64_t) 100){
-            //pr_info("ignored packet with %lld offset \n", offset);
             servo_state = SERVO_METASTABLE;
             offset = 0;
             stable_count++;
             if(stable_count >= 100){
                 servo_state = SERVO_UNSTABLE;
-                s->kp = 0.2;
-                s->ki = 0.02;
+                s->kp = 1.3;
+                s->ki = 0.13;
                 pr_info("servo unstable !");
             }
         }
         ki_term = s->ki * offset * weight;
         ppb = s->kp * offset * weight + ki_term + s->drift;
-	if(is_init){
-           ppb = clamp(ppb-s->last_freq,40.0,-40.0)+s->last_freq;
-	}
         if (ppb < -servo->max_frequency) {
             ppb = -servo->max_frequency;
         } else if (ppb > servo->max_frequency) {
             ppb = servo->max_frequency;
         } else {
-            if ((labs(offset) < (int64_t) 200) || !is_init){
-                s->drift += ki_term;
-            }
+            s->drift += ki_term;
         }
         *state = SERVO_LOCKED;
         break;
